@@ -1021,6 +1021,7 @@ textarea{
       <button onclick="openSummary()">Summary</button>
       <button class="dark" onclick="backupData()">Backup</button>
       <button class="dark" onclick="document.getElementById('restoreFile').click()">Restore</button>
+      <button id="discountToggleBtn" onclick="toggleDiscount()">&#x1F441; Discount: On</button>
       <input id="restoreFile" type="file" accept=".json" style="display:none" onchange="restoreData(event)">
     </div>
   </div>
@@ -1216,9 +1217,9 @@ textarea{
             <th>Length / Size</th>
             <th>Quantity</th>
             <th>Rate</th>
-            <th>Amount</th>
-            <th>Discount</th>
-            <th>After Discount</th>
+            <th id="thAmount">Amount</th>
+            <th id="thDiscount">Discount</th>
+            <th id="thAfterDiscount">After Discount</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -1288,7 +1289,7 @@ textarea{
         <strong id="grossTotal">Rs. 0.00</strong>
       </div>
 
-      <div class="summary-line">
+      <div class="summary-line" id="itemDiscountRow">
         <span>Item Discount</span>
         <strong id="itemDiscountTotal">Rs. 0.00</strong>
       </div>
@@ -1298,7 +1299,7 @@ textarea{
         <strong id="netTotal">Rs. 0.00</strong>
       </div>
 
-      <div class="summary-line">
+      <div class="summary-line" id="globalDiscountRow">
         <span>Global Discount</span>
         <strong id="globalDiscountTotal">Rs. 0.00</strong>
       </div>
@@ -1632,6 +1633,15 @@ const DEFAULT_RATES = [
 
 let rates = [];
 let items = [];
+
+let discountVisible = true;
+
+try{
+
+  discountVisible =
+    localStorage.getItem("alu_discount_visible") !== "0";
+
+}catch(e){}
 let editingIndex = -1;
 
 /* =========================================================
@@ -1658,8 +1668,7 @@ document.addEventListener("DOMContentLoaded", () => {
   attachEvents();
   loadDraft();
 
-  renderItems();
-  calculateTotals();
+  applyDiscountVisibility();
 
   registerServiceWorker();
 
@@ -2093,6 +2102,72 @@ function addItem(){
    RENDER ITEMS
 ========================================================= */
 
+function toggleDiscount(){
+
+  discountVisible = !discountVisible;
+
+  try{
+
+    localStorage.setItem(
+      "alu_discount_visible",
+      discountVisible ? "1" : "0"
+    );
+
+  }catch(e){}
+
+  applyDiscountVisibility();
+
+  toast(
+    discountVisible
+      ? "Discount shown"
+      : "Discount hidden"
+  );
+
+}
+
+function applyDiscountVisibility(){
+
+  const btn =
+    document.getElementById("discountToggleBtn");
+
+  if(btn){
+    btn.innerHTML =
+      discountVisible
+        ? "&#x1F441; Discount: On"
+        : "&#x1F441; Discount: Off";
+  }
+
+  const show =
+    discountVisible ? "" : "none";
+
+  ["thAmount","thDiscount"].forEach(id => {
+    const el = document.getElementById(id);
+    if(el){ el.style.display = show; }
+  });
+
+  const thAfter =
+    document.getElementById("thAfterDiscount");
+
+  if(thAfter){
+    thAfter.textContent =
+      discountVisible ? "After Discount" : "Amount";
+  }
+
+  const itemRow =
+    document.getElementById("itemDiscountRow");
+
+  if(itemRow){ itemRow.style.display = show; }
+
+  const globalRow =
+    document.getElementById("globalDiscountRow");
+
+  if(globalRow){ globalRow.style.display = show; }
+
+  renderItems();
+  calculateTotals();
+
+}
+
 function renderItems(){
 
   const body =
@@ -2143,9 +2218,9 @@ function renderItems(){
 
       <td>${money(item.rate)}</td>
 
-      <td class="amount">${money(item.amount)}</td>
+      ${discountVisible ? `<td class="amount">${money(item.amount)}</td>` : ""}
 
-      <td>${item.discount}%</td>
+      ${discountVisible ? `<td>${item.discount}%</td>` : ""}
 
       <td class="net">${money(item.net)}</td>
 
@@ -3212,20 +3287,22 @@ function openSummary(){
         <strong>${money(t.gross)}</strong>
       </div>
 
+      ${discountVisible ? `
       <div class="summary-line">
         <span>Item Discount</span>
         <strong>${money(t.itemDiscount)}</strong>
-      </div>
+      </div>` : ""}
 
       <div class="summary-line">
         <span>Net</span>
         <strong>${money(t.net)}</strong>
       </div>
 
+      ${discountVisible ? `
       <div class="summary-line">
         <span>Global Discount</span>
         <strong>${money(t.globalDiscount)}</strong>
-      </div>
+      </div>` : ""}
 
       <div class="summary-line">
         <span>After Global Discount</span>
@@ -3668,12 +3745,14 @@ function sendWhatsApp(){
     encodeURIComponent(money(t.gross)) +
     "%0A";
 
-  message +=
-    "Discount: " +
-    encodeURIComponent(
-      money(t.itemDiscount + t.globalDiscount)
-    ) +
-    "%0A";
+  if(discountVisible){
+    message +=
+      "Discount: " +
+      encodeURIComponent(
+        money(t.itemDiscount + t.globalDiscount)
+      ) +
+      "%0A";
+  }
 
   message +=
     "Labour: " +
@@ -3761,24 +3840,42 @@ function pdfReady(){
 
 function fullBillTable(){
 
-  const head = [[
-    "#","Section","Colour","Thickness",
-    "Length / Size","Qty","Rate",
-    "Amount","Disc %","After Disc"
-  ]];
+  const head = discountVisible
+    ? [[
+        "#","Section","Colour","Thickness",
+        "Length / Size","Qty","Rate",
+        "Amount","Disc %","After Disc"
+      ]]
+    : [[
+        "#","Section","Colour","Thickness",
+        "Length / Size","Qty","Rate","Amount"
+      ]];
 
-  const body = items.map((item,index) => ([
-    String(index+1),
-    item.section,
-    item.colour,
-    item.thickness + " mm",
-    item.size,
-    String(item.qty),
-    money(item.rate),
-    money(item.amount),
-    item.discount + "%",
-    money(item.net)
-  ]));
+  const body = items.map((item,index) =>
+    discountVisible
+      ? ([
+          String(index+1),
+          item.section,
+          item.colour,
+          item.thickness + " mm",
+          item.size,
+          String(item.qty),
+          money(item.rate),
+          money(item.amount),
+          item.discount + "%",
+          money(item.net)
+        ])
+      : ([
+          String(index+1),
+          item.section,
+          item.colour,
+          item.thickness + " mm",
+          item.size,
+          String(item.qty),
+          money(item.rate),
+          money(item.net)
+        ])
+  );
 
   return { head, body };
 
@@ -3877,16 +3974,33 @@ function pdfTotalsBlock(doc, startY, t){
   let y = startY;
 
   const lines = [
-    ["Gross Amount", money(t.gross)],
-    ["Item Discount", money(t.itemDiscount)],
-    ["Net (After Item Discount)", money(t.net)],
-    ["Global Discount", money(t.globalDiscount)],
-    ["After Global Discount", money(t.afterGlobal)],
+    ["Gross Amount", money(t.gross)]
+  ];
+
+  if(discountVisible){
+    lines.push(["Item Discount", money(t.itemDiscount)]);
+  }
+
+  lines.push([
+    discountVisible ? "Net (After Item Discount)" : "Net Amount",
+    money(t.net)
+  ]);
+
+  if(discountVisible){
+    lines.push(["Global Discount", money(t.globalDiscount)]);
+  }
+
+  lines.push([
+    discountVisible ? "After Global Discount" : "Subtotal",
+    money(t.afterGlobal)
+  ]);
+
+  lines.push(
     ["Labour + Freight", money(t.labour + t.freight)],
     ["Previous Balance", money(t.previousBalance)],
     ["Amount Paid", money(t.paid)],
     ["Balance", money(t.balance)]
-  ];
+  );
 
   doc.setFont("helvetica","normal");
   doc.setFontSize(13);
@@ -4229,6 +4343,15 @@ function checkApp(){
     ok:
       typeof downloadSummaryPDF === "function" &&
       typeof summaryTable === "function"
+  });
+
+  /* Discount Toggle */
+
+  results.push({
+    name:"Discount Toggle",
+    ok:
+      typeof toggleDiscount === "function" &&
+      document.getElementById("discountToggleBtn") !== null
   });
 
   /* Offline */
