@@ -1022,6 +1022,9 @@ textarea{
       <button class="dark" onclick="backupData()">Backup</button>
       <button class="dark" onclick="document.getElementById('restoreFile').click()">Restore</button>
       <button id="discountToggleBtn" onclick="toggleDiscount()">&#x1F441; Discount: On</button>
+      <button onclick="openRateChart()">&#x1F4CA; Rate Chart</button>
+      <button onclick="openConvertModal()">&#x1F504; Convert mm</button>
+      <button onclick="openMultiPdfModal()">&#x1F4C4; 3-Thickness PDF</button>
       <input id="restoreFile" type="file" accept=".json" style="display:none" onchange="restoreData(event)">
     </div>
   </div>
@@ -1533,6 +1536,91 @@ textarea{
   </div>
 </div>
 
+<!-- ================= RATE CHART MODAL ================= -->
+
+<div class="modal" id="rateChartModal">
+  <div class="modal-box">
+
+    <div class="modal-head">
+      <div class="modal-title">Rate Chart — 1.2 / 1.6 / 2.0 mm</div>
+      <button class="close" onclick="closeModal('rateChartModal')">×</button>
+    </div>
+
+    <div class="field">
+      <label>Search Section</label>
+      <input id="rateChartSearch" placeholder="Search section... e.g. DC-26F" oninput="renderRateChart()">
+    </div>
+
+    <div class="rate-table-wrap">
+      <table class="rate-table">
+        <thead>
+          <tr>
+            <th>Section</th>
+            <th>1.2 mm</th>
+            <th>1.6 mm</th>
+            <th>2.0 mm</th>
+          </tr>
+        </thead>
+
+        <tbody id="rateChartBody"></tbody>
+      </table>
+    </div>
+
+    <div style="font-size:12px;color:#6b7280;margin-top:8px">
+      Note: D-57 / D-58 ke rates 4.0 mm ke hain (2.0 mm column mein).
+    </div>
+
+  </div>
+</div>
+
+<!-- ================= CONVERT THICKNESS MODAL ================= -->
+
+<div class="modal" id="convertModal">
+  <div class="modal-box">
+
+    <div class="modal-head">
+      <div class="modal-title">Convert Bill Thickness</div>
+      <button class="close" onclick="closeModal('convertModal')">×</button>
+    </div>
+
+    <p style="font-size:14px;color:#374151;margin:4px 0 12px">
+      Poore bill ke tamam items ke rates <b>auto update</b> ho jayenge.
+      Jis section ka rate us thickness mein set nahi, woh item waisa hi rahega.
+    </p>
+
+    <div class="modal-actions" style="flex-direction:column;align-items:stretch">
+      <button class="save-modal" onclick="convertBillThickness('1.2')">Convert to 1.2 mm</button>
+      <button class="save-modal" onclick="convertBillThickness('1.6')">Convert to 1.6 mm</button>
+      <button class="save-modal" onclick="convertBillThickness('2.0')">Convert to 2.0 mm</button>
+      <button class="cancel-modal" onclick="closeModal('convertModal')">Cancel</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================= MULTI-THICKNESS PDF MODAL ================= -->
+
+<div class="modal" id="multiPdfModal">
+  <div class="modal-box">
+
+    <div class="modal-head">
+      <div class="modal-title">3-Thickness PDF</div>
+      <button class="close" onclick="closeModal('multiPdfModal')">×</button>
+    </div>
+
+    <p style="font-size:14px;color:#374151;margin:4px 0 12px">
+      Teenon thicknesses (1.2 / 1.6 / 2.0 mm) ke rates par bill ki PDF banayein.
+    </p>
+
+    <div class="modal-actions" style="flex-direction:column;align-items:stretch">
+      <button class="save-modal" onclick="downloadCombinedThicknessPDF()">&#x1F4C4; Ek Combined PDF (3 hisse)</button>
+      <button class="save-modal" onclick="downloadSeparateThicknessPDFs()">&#x1F4C4;&#x1F4C4;&#x1F4C4; 3 Alag PDFs</button>
+      <button class="cancel-modal" onclick="closeModal('multiPdfModal')">Cancel</button>
+    </div>
+
+  </div>
+</div>
+
 <!-- ================= HISTORY MODAL ================= -->
 
 <div class="modal" id="historyModal">
@@ -1585,6 +1673,7 @@ const STORAGE_HISTORY = "quotation_history";
 const STORAGE_CUSTOMER = "quotation_customer";
 const STORAGE_COMPANY = "quotation_company";
 const STORAGE_DRAFT = "quotation_draft";
+const STORAGE_RATES_VER = "aluminium_rates_ver";
 
 /* =========================================================
    DEFAULT RATES
@@ -1592,7 +1681,7 @@ const STORAGE_DRAFT = "quotation_draft";
 
 const DEFAULT_RATES = [
   ["DC-26F",880,1049,1244],
-  ["DC-30F",754,911,1067],
+  ["DC-30F",754,911,1142],
   ["M-23",354,445,542],
   ["M-28",431,534,645],
   ["M-24",420,497,605],
@@ -1603,7 +1692,7 @@ const DEFAULT_RATES = [
   ["M-26",582,710,836],
   ["M-30F",612,713,836],
   ["M-30",522,610,716],
-  ["AA-23",534,699,863],
+  ["AA-23",534,699,923],
   ["AA-28",613,767,942],
   ["D-50",553,707,851],
   ["D-50A",490,584,710],
@@ -1613,13 +1702,13 @@ const DEFAULT_RATES = [
   ["D-54A",397,484,580],
   ["D-54F",486,582,702],
   ["D-46",861,1087,1333],
-  ["D-48A",578,715,921],
+  ["D-48A",578,735,921],
   ["D-59",537,628,746],
   ["D-59A",550,676,821],
   ["D-40",480,542,667],
-  ["DG-26A",0,1293,1580],
+  ["DG-26A",0,1287,1562],
   ["DG-26",867,1120,1351],
-  ["DG-26F",933,1233,1484],
+  ["DG-26F",933,1319,1484],
   ["DG-23",513,638,759],
   ["DG-51A",0,735,886],
   ["DG-23A",572,691,821],
@@ -1627,9 +1716,72 @@ const DEFAULT_RATES = [
   ["HD-2",0,821,995],
   ["HD-3",0,1273,1472],
   ["D-48B",0,595,0],
-  ["D-29",274,0,0],
-  ["B6",137,0,0]
+  ["D-29",274,0,404],
+  ["B6",137,0,0],
+  ["M-24F",274,0,0],
+  ["D-29A",331,0,0],
+  ["D-29B",170,0,0],
+  ["D-29D",274,0,0],
+  ["D-29S",189,0,0],
+  ["D-49",220,0,0],
+  ["D-41",183,0,0],
+  ["D-41B",147,0,0],
+  ["D-42",320,0,0],
+  ["D-42F",408,0,0],
+  ["D-52",434,0,0],
+  ["D-31",191,0,0],
+  ["D-60",317,0,0],
+  ["D-61",514,0,0],
+  ["L-26",377,0,0],
+  ["L-30",331,0,0],
+  ["L-39",222,0,0],
+  ["P-1x1",226,0,0],
+  ["P-1x2",351,0,0],
+  ["P-2x2",470,0,0],
+  ["P-1x3",453,0,0],
+  ["P-1x4",627,0,0],
+  ["P-1.5x1.5",351,0,0],
+  ["P-1.5x3",522,0,0],
+  ["U.per",169,0,0],
+  ["K.Plate (4.5\")",329,0,0],
+  ["H-7",183,0,0],
+  ["U-1/2*3/4",161,0,0],
+  ["Z-1",285,0,0],
+  ["Z-2",331,0,0],
+  ["DG-28",222,0,0],
+  ["DG-29",352,0,0],
+  ["DG-41A",183,0,0],
+  ["KT-1",282,0,0],
+  ["KT-2",312,0,0],
+  ["KT-3",345,0,0],
+  ["KT-4",317,0,0],
+  ["KT-5",342,0,0],
+  ["KT-6",312,0,0],
+  ["KT-7",421,0,0],
+  ["KT-8",447,0,0],
+  ["KT-9",427,0,0],
+  ["KT-10",432,0,0],
+  ["KT-11",461,0,0],
+  ["KT-12",437,0,0],
+  ["KT-13",363,0,0],
+  ["KT-14",447,0,0],
+  ["KT-15",366,0,0],
+  ["KT-16",328,0,0],
+  ["KT-17",366,0,0],
+  ["KT-18",447,0,0],
+  ["DG-51F",0,875,0],
+  ["DG-57",0,0,909],
+  ["DG-58",0,0,628],
+  ["D-38",0,0,800],
+  ["D-38B",0,0,580],
+  ["D-38F",0,0,676],
+  ["D-57",0,0,936],
+  ["D-58",0,0,572]
 ];
+
+/* Rate database version — bump when DEFAULT_RATES changes
+   so existing phones pick up the new rates automatically */
+const RATES_VERSION = "2026-10-02-thickness-v1";
 
 let rates = [];
 let items = [];
@@ -1651,6 +1803,7 @@ let editingIndex = -1;
 document.addEventListener("DOMContentLoaded", () => {
 
   loadRates();
+  migrateRates();
   loadSavedCustomer();
   loadSavedCompany();
 
@@ -1776,6 +1929,48 @@ function loadRates(){
 
 function saveRates(){
   localStorage.setItem(STORAGE_RATES, JSON.stringify(rates));
+}
+
+/* Bring saved rates up to date when DEFAULT_RATES changes.
+   Official sections are refreshed; the user's own custom
+   sections (added via Rate Manager) are preserved. */
+
+function migrateRates(){
+
+  let ver = null;
+
+  try{
+    ver = localStorage.getItem(STORAGE_RATES_VER);
+  }catch(e){}
+
+  if(ver === RATES_VERSION){
+    return;
+  }
+
+  const defaults = DEFAULT_RATES.map(r => ({
+    section:r[0],
+    g1:Number(r[1]),
+    g2:Number(r[2]),
+    g3:Number(r[3])
+  }));
+
+  const custom = rates.filter(r =>
+    !defaults.some(d =>
+      String(d.section).toLowerCase() ===
+      String(r.section).toLowerCase()
+    )
+  );
+
+  rates = defaults.concat(custom);
+
+  saveRates();
+
+  try{
+    localStorage.setItem(STORAGE_RATES_VER, RATES_VERSION);
+  }catch(e){}
+
+  populateSections();
+
 }
 
 function populateSections(){
@@ -3838,7 +4033,7 @@ function pdfReady(){
 
 }
 
-function fullBillTable(){
+function fullBillTableFor(list){
 
   const head = discountVisible
     ? [[
@@ -3851,11 +4046,11 @@ function fullBillTable(){
         "Length / Size","Qty","Rate","Amount"
       ]];
 
-  const body = items.map((item,index) =>
+  const body = list.map((item,index) =>
     discountVisible
       ? ([
           String(index+1),
-          item.section,
+          item.section + (item.rateMissing ? " *" : ""),
           item.colour,
           item.thickness + " mm",
           item.size,
@@ -3867,7 +4062,7 @@ function fullBillTable(){
         ])
       : ([
           String(index+1),
-          item.section,
+          item.section + (item.rateMissing ? " *" : ""),
           item.colour,
           item.thickness + " mm",
           item.size,
@@ -3879,6 +4074,10 @@ function fullBillTable(){
 
   return { head, body };
 
+}
+
+function fullBillTable(){
+  return fullBillTableFor(items);
 }
 
 function summaryTable(){
@@ -4181,6 +4380,401 @@ function downloadSummaryPDF(){
 }
 
 /* =========================================================
+   THICKNESS SYSTEM — Rate Chart, Convert, Multi-PDF
+========================================================= */
+
+function openRateChart(){
+
+  document.getElementById("rateChartSearch").value = "";
+
+  renderRateChart();
+
+  document.getElementById("rateChartModal")
+    .classList.add("show");
+
+}
+
+function renderRateChart(){
+
+  const q =
+    document.getElementById("rateChartSearch")
+      .value.trim().toLowerCase();
+
+  const body =
+    document.getElementById("rateChartBody");
+
+  body.innerHTML = "";
+
+  const list = rates
+    .filter(r =>
+      !q ||
+      String(r.section).toLowerCase().includes(q)
+    )
+    .sort((a,b) =>
+      String(a.section).localeCompare(String(b.section))
+    );
+
+  list.forEach(r => {
+
+    const tr = document.createElement("tr");
+
+    tr.innerHTML =
+      "<td>" + escapeHtml(r.section) + "</td>" +
+      "<td>" + (Number(r.g1) || "—") + "</td>" +
+      "<td>" + (Number(r.g2) || "—") + "</td>" +
+      "<td>" + (Number(r.g3) || "—") + "</td>";
+
+    body.appendChild(tr);
+
+  });
+
+  if(list.length === 0){
+
+    body.innerHTML =
+      "<tr><td colspan=\"4\" " +
+      "style=\"text-align:center\">" +
+      "No sections found</td></tr>";
+
+  }
+
+}
+
+function openConvertModal(){
+
+  if(items.length === 0){
+    toast("Add at least one item");
+    return;
+  }
+
+  document.getElementById("convertModal")
+    .classList.add("show");
+
+}
+
+function convertBillThickness(target){
+
+  closeModal("convertModal");
+
+  if(!confirm(
+    "Convert all " + items.length +
+    " items to " + target +
+    " mm? Rates will auto-update."
+  )){
+    return;
+  }
+
+  const missing = [];
+
+  items.forEach(item => {
+
+    const nr = getRate(item.section, target);
+
+    if(nr > 0){
+
+      item.rate = nr;
+      item.thickness = String(target);
+
+      item.amount =
+        (Number(item.area) || 0) *
+        (Number(item.qty) || 0) * nr;
+
+      item.discountAmount =
+        item.amount *
+        (Number(item.discount) || 0) / 100;
+
+      item.net =
+        item.amount - item.discountAmount;
+
+    }else{
+
+      missing.push(item.section);
+
+    }
+
+  });
+
+  renderItems();
+  calculateTotals();
+  saveDraft();
+
+  if(missing.length){
+
+    const uniq = [...new Set(missing)];
+
+    toast(
+      "Converted — no " + target +
+      "mm rate for: " + uniq.join(", ")
+    );
+
+  }else{
+
+    toast("Bill converted to " + target + " mm");
+
+  }
+
+}
+
+/* Recompute the whole bill as if every item used the
+   given thickness. Items without a rate for that
+   thickness keep their current rate (flagged). */
+
+function billViewFor(thickness){
+
+  const t = String(thickness);
+
+  const vItems = items.map(item => {
+
+    const nr = getRate(item.section, t);
+
+    const rate =
+      nr > 0 ? nr : (Number(item.rate) || 0);
+
+    const amount =
+      (Number(item.area) || 0) *
+      (Number(item.qty) || 0) * rate;
+
+    const discountAmount =
+      amount * (Number(item.discount) || 0) / 100;
+
+    return {
+
+      section:item.section,
+      colour:item.colour,
+      thickness:t,
+      size:item.size,
+      qty:item.qty,
+      rate,
+      amount,
+      discount:item.discount,
+      discountAmount,
+      net:amount - discountAmount,
+      rateMissing:nr <= 0
+
+    };
+
+  });
+
+  const gross =
+    vItems.reduce((s,i) => s + i.amount, 0);
+
+  const itemDiscount =
+    vItems.reduce((s,i) => s + i.discountAmount, 0);
+
+  const net = gross - itemDiscount;
+
+  const globalPercent =
+    Number(document.getElementById("globalDiscount").value) || 0;
+
+  const globalDiscount =
+    net * globalPercent / 100;
+
+  const afterGlobal =
+    net - globalDiscount;
+
+  const labour =
+    Number(document.getElementById("labour").value) || 0;
+
+  const freight =
+    Number(document.getElementById("freight").value) || 0;
+
+  const previousBalance =
+    Number(document.getElementById("previousBalance").value) || 0;
+
+  const paid =
+    Number(document.getElementById("amountPaid").value) || 0;
+
+  const grandTotal =
+    afterGlobal + labour + freight + previousBalance;
+
+  const balance =
+    grandTotal - paid;
+
+  return {
+
+    vItems,
+
+    totals:{
+      gross,
+      itemDiscount,
+      net,
+      globalDiscount,
+      afterGlobal,
+      labour,
+      freight,
+      previousBalance,
+      grandTotal,
+      paid,
+      balance
+    }
+
+  };
+
+}
+
+function drawThicknessBill(doc, th, firstPage){
+
+  if(!firstPage){
+    doc.addPage();
+  }
+
+  const view = billViewFor(th);
+
+  let y =
+    pdfHeaderBlock(doc, "QUOTATION / BILL — " + th + " mm");
+
+  const { head, body } =
+    fullBillTableFor(view.vItems);
+
+  doc.autoTable({
+    head,
+    body,
+    startY:y,
+    theme:"grid",
+    styles:{
+      fontSize:12,
+      textColor:[0,0,0],
+      cellPadding:2
+    },
+    headStyles:{
+      fillColor:[11,24,48],
+      textColor:[255,255,255],
+      fontSize:12,
+      fontStyle:"bold"
+    },
+    alternateRowStyles:{
+      fillColor:[245,247,250]
+    }
+  });
+
+  y = doc.lastAutoTable.finalY + 10;
+
+  const missing =
+    [...new Set(
+      view.vItems
+        .filter(i => i.rateMissing)
+        .map(i => i.section)
+    )];
+
+  if(missing.length){
+
+    doc.setFont("helvetica","italic");
+    doc.setFontSize(10);
+    doc.setTextColor(180,0,0);
+
+    doc.text(
+      "Note: no " + th + " mm rate for " +
+      missing.join(", ") +
+      " — original rate used.",
+      14, y
+    );
+
+    y += 7;
+
+  }
+
+  pdfTotalsBlock(doc, y, view.totals);
+
+}
+
+function openMultiPdfModal(){
+
+  if(items.length === 0){
+    toast("Add at least one item");
+    return;
+  }
+
+  document.getElementById("multiPdfModal")
+    .classList.add("show");
+
+}
+
+function downloadCombinedThicknessPDF(){
+
+  if(items.length === 0){
+    toast("Add at least one item");
+    return;
+  }
+
+  if(!pdfReady()){
+    return;
+  }
+
+  closeModal("multiPdfModal");
+
+  try{
+
+    const { jsPDF } = window.jspdf;
+
+    const doc = new jsPDF({
+      orientation:"landscape",
+      unit:"mm",
+      format:"a4"
+    });
+
+    const qno =
+      document.getElementById("quoteNo").value || "bill";
+
+    ["1.2","1.6","2.0"].forEach((th,idx) => {
+      drawThicknessBill(doc, th, idx === 0);
+    });
+
+    doc.save("Bill-3Thickness-" + qno + ".pdf");
+
+    toast("Combined 3-thickness PDF downloaded");
+
+  }catch(err){
+
+    toast("PDF failed — use Print / PDF button");
+
+  }
+
+}
+
+function downloadSeparateThicknessPDFs(){
+
+  if(items.length === 0){
+    toast("Add at least one item");
+    return;
+  }
+
+  if(!pdfReady()){
+    return;
+  }
+
+  closeModal("multiPdfModal");
+
+  try{
+
+    const { jsPDF } = window.jspdf;
+
+    const qno =
+      document.getElementById("quoteNo").value || "bill";
+
+    ["1.2","1.6","2.0"].forEach(th => {
+
+      const doc = new jsPDF({
+        orientation:"landscape",
+        unit:"mm",
+        format:"a4"
+      });
+
+      drawThicknessBill(doc, th, true);
+
+      doc.save("Bill-" + th + "mm-" + qno + ".pdf");
+
+    });
+
+    toast("3 PDFs downloaded (1.2 / 1.6 / 2.0 mm)");
+
+  }catch(err){
+
+    toast("PDF failed — use Print / PDF button");
+
+  }
+
+}
+
+/* =========================================================
    OFFLINE (Service Worker)
 ========================================================= */
 
@@ -4361,6 +4955,74 @@ function checkApp(){
     ok:
       typeof registerServiceWorker === "function" &&
       document.querySelector('link[rel="manifest"]') !== null
+  });
+
+  /* Thickness Rates Database */
+
+  results.push({
+    name:"Thickness Rates Count",
+    ok:rates.length >= 90
+  });
+
+  results.push({
+    name:"Corrected Rates (DC-30F/AA-23/D-48A/DG-26A/DG-26F/D-29)",
+    ok:
+      getRate("DC-30F","2.0") === 1142 &&
+      getRate("AA-23","2.0") === 923 &&
+      getRate("D-48A","1.6") === 735 &&
+      getRate("DG-26A","1.6") === 1287 &&
+      getRate("DG-26A","2.0") === 1562 &&
+      getRate("DG-26F","1.6") === 1319 &&
+      getRate("D-29","2.0") === 404
+  });
+
+  results.push({
+    name:"New Sections Rates",
+    ok:
+      getRate("KT-10","1.2") === 432 &&
+      getRate("KT-1","1.2") === 282 &&
+      getRate("KT-18","1.2") === 447 &&
+      getRate("M-24F","1.2") === 274 &&
+      getRate("DG-51F","1.6") === 875 &&
+      getRate("DG-57","2.0") === 909 &&
+      getRate("D-38","2.0") === 800 &&
+      getRate("K.Plate (4.5\")","1.2") === 329
+  });
+
+  /* Rate Chart */
+
+  results.push({
+    name:"Rate Chart Module",
+    ok:
+      typeof openRateChart === "function" &&
+      typeof renderRateChart === "function" &&
+      document.getElementById("rateChartModal") !== null &&
+      document.getElementById("rateChartSearch") !== null &&
+      document.getElementById("rateChartBody") !== null
+  });
+
+  /* Convert */
+
+  results.push({
+    name:"Convert Thickness Module",
+    ok:
+      typeof openConvertModal === "function" &&
+      typeof convertBillThickness === "function" &&
+      document.getElementById("convertModal") !== null
+  });
+
+  /* Multi-Thickness PDF */
+
+  results.push({
+    name:"Multi-Thickness PDF Module",
+    ok:
+      typeof openMultiPdfModal === "function" &&
+      typeof billViewFor === "function" &&
+      typeof drawThicknessBill === "function" &&
+      typeof downloadCombinedThicknessPDF === "function" &&
+      typeof downloadSeparateThicknessPDFs === "function" &&
+      typeof fullBillTableFor === "function" &&
+      document.getElementById("multiPdfModal") !== null
   });
 
   const failed =

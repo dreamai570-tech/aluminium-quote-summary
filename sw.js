@@ -1,6 +1,6 @@
 /* Aluminium Quotation Bill — offline service worker */
 
-const CACHE_NAME = "alu-bill-v1";
+const CACHE_NAME = "alu-bill-v2-thickness";
 
 const ASSETS = [
   "./",
